@@ -1,0 +1,39 @@
+name: CI
+on: [push, pull_request]
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_USER: nexvora_owner, POSTGRES_PASSWORD: ownerpw, POSTGRES_DB: nexvora }
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready" --health-interval 5s --health-retries 20
+    defaults: { run: { working-directory: apps/api } }
+    env:
+      DATABASE_MIGRATION_URL: postgresql+psycopg://nexvora_owner:ownerpw@localhost:5432/nexvora
+      DATABASE_URL: postgresql+asyncpg://nexvora_app:apppw@localhost:5432/nexvora
+      APP_DB_USER: nexvora_app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements-dev.txt
+      - name: Buat role app (NOBYPASSRLS)
+        run: >
+          PGPASSWORD=ownerpw PGHOST=localhost POSTGRES_USER=nexvora_owner POSTGRES_DB=nexvora
+          APP_DB_USER=nexvora_app APP_DB_PASSWORD=apppw sh ../../infrastructure/docker/postgres/01-app-role.sh
+      - run: alembic upgrade head
+      - run: python -m pytest -q
+
+  web:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: apps/web } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
