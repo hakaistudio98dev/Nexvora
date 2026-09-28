@@ -57,9 +57,9 @@ export default function SignupPage() {
         <h2 className="text-2xl font-bold">Buat workspace</h2>
         {err && <Alert>{err}</Alert>}
         <Field label="Nama brand / perusahaan">{(id) => <Input id={id} value={f.company_name} onChange={set("company_name")} required autoComplete="organization" />}</Field>
-        <Field label="Kode workspace" hint="Dipakai saat login. Huruf kecil, angka, strip.">{(id) => <Input id={id} value={f.slug} onChange={set("slug")} required pattern="[a-z0-9][a-z0-9-]{2,40}" />}</Field>
+        <Field label="Kode workspace" hint="Dipakai saat login. Huruf kecil, angka, strip.">{(id) => <Input id={id} value={f.slug} onChange={set("slug")} required pattern="[a-z0-9][a-z0-9-]{2,40}" autoCapitalize="none" autoCorrect="off" spellCheck={false} />}</Field>
         <Field label="Nama Anda">{(id) => <Input id={id} value={f.full_name} onChange={set("full_name")} required autoComplete="name" />}</Field>
-        <Field label="Email kerja">{(id) => <Input id={id} type="email" value={f.email} onChange={set("email")} required autoComplete="email" />}</Field>
+        <Field label="Email kerja">{(id) => <Input id={id} type="email" value={f.email} onChange={set("email")} required autoComplete="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} />}</Field>
         <Field label="Password" hint="Minimal 12 karakter, gabungan huruf besar, kecil, angka/simbol">{(id) => <Input id={id} type="password" value={f.password} onChange={set("password")} required autoComplete="new-password" />}</Field>
         <Button type="submit" loading={busy} className="min-h-12 text-base">Mulai masa coba</Button>
         <p className="text-center text-sm">Sudah punya workspace? <a href="/login" className="font-semibold">Masuk</a></p>

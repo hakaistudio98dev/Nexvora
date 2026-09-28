@@ -14,6 +14,6 @@ export async function POST(req: NextRequest) {
     }).catch(() => undefined);
   }
   const res = NextResponse.json({ ok: true });
-  clearSessionCookies(res);
+  clearSessionCookies(res, req);
   return res;
 }

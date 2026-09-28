@@ -5,6 +5,8 @@ from app.models.inventory import InventoryBalance, InventoryLedger, Reservation
 from app.models.order import Order, OrderItem, OrderStatusHistory
 from app.models.identity import Permission, RefreshToken, Role, RolePermission, User, UserRole
 from app.models.shipping import CourierAccount, CustomCourier, Manifest, Return, ReturnLine, Shipment, TrackingEvent
+from app.models.events import OutboxEvent
+from app.models.ai import Anomaly, DemandForecast
 from app.models.ops import Notification, NotificationChannel, NotificationDelivery, TenantSettings
 from app.models.saas import ApiKey, Invoice, Plan, Subscription
 from app.models.tenant import Tenant
@@ -19,4 +21,4 @@ __all__ = ["AuditLog", "Base", "Product", "Sku", "Permission", "RefreshToken", "
            "PackProgress", "Wave", "WmsException", "WmsTask",
            "ApiKey", "Invoice", "Plan", "Subscription",
            "CourierAccount", "CustomCourier", "Manifest", "Return", "ReturnLine", "Shipment", "TrackingEvent",
-           "Notification", "NotificationChannel", "NotificationDelivery", "TenantSettings"]
+           "Notification", "NotificationChannel", "NotificationDelivery", "TenantSettings", "OutboxEvent"]

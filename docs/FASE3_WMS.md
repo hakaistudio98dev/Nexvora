@@ -28,7 +28,11 @@ CYCLE COUNT: supervisor pilih area → operator hitung tanpa melihat angka siste
 ## Aplikasi scanner (`/scan`)
 Web app mobile-first untuk operator. Dibuka di browser ponsel atau handheld Android, tanpa perlu install dari store.
 - **Scanner genggam** (mode keyboard / HID): langsung bekerja, karena setiap scan diakhiri Enter.
-- **Kamera ponsel**: tombol kamera (library ZXing). Wajib dibuka lewat **HTTPS** (atau `localhost`) agar izin kamera muncul.
+- **Kamera ponsel**: tombol kamera (library ZXing). Chrome & Safari hanya mengizinkan kamera di **HTTPS** (atau
+  `localhost`); di `http://IP` dialog izin tidak pernah muncul dan aplikasi menjelaskan hal ini di layar.
+  Cara mengaktifkan: (1) pasang domain + TLS di Nginx, (2) pakai tunnel HTTPS seperti Cloudflare Tunnel untuk uji coba,
+  atau (3) sementara buka `chrome://flags/#unsafely-treat-insecure-origin-as-secure` di Chrome Android, isi
+  `http://<IP-komputer>`, pilih *Enabled*, lalu buka ulang Chrome dan pilih **Izinkan** saat kamera diminta.
 - **Offline**: bila sinyal hilang, scan terima/putaway/pick/hitung/lapor disimpan di perangkat dan dikirim otomatis
   saat online. Setiap scan membawa `client_event_id` unik, jadi pengiriman ulang tidak pernah mencatat stok dua kali.
   Packing tetap butuh koneksi karena verifikasi harus langsung.

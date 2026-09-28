@@ -3,8 +3,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  Activity, Bell, Boxes, ChartColumn, ClipboardList, CreditCard, History, House, KeyRound, Lock, LogOut, MapPin, Menu,
-  Package, ScanLine, Settings, ShieldCheck, ShoppingCart, Truck, Undo2, Users, X, type LucideIcon,
+  Activity, Bell, Bot, Boxes, FileSpreadsheet, ChartColumn, ClipboardList, CreditCard, History, House, KeyRound, Lock, LogOut, MapPin, Menu,
+  Package, ScanLine, Settings, ShieldCheck, ShoppingCart, Sparkles, Truck, Undo2, Users, X, type LucideIcon,
 } from "lucide-react";
 import { MeContext } from "@/components/me-context";
 import { api } from "@/lib/api";
@@ -14,7 +14,10 @@ import type { Me } from "@/lib/types";
 type Item = { href: string; label: string; icon: LucideIcon; perm: string | null; feature?: string };
 // Dikelompokkan menurut pekerjaan sehari-hari, dengan nama yang dipahami pengguna (bukan istilah sistem)
 const GROUPS: { title: string | null; items: Item[] }[] = [
-  { title: null, items: [{ href: "/dashboard", label: "Beranda", icon: House, perm: null }] },
+  { title: null, items: [
+    { href: "/dashboard", label: "Beranda", icon: House, perm: null },
+    { href: "/assistant", label: "Asisten", icon: Bot, perm: "assistant:use" },
+  ] },
   { title: "Penjualan", items: [
     { href: "/orders", label: "Order", icon: ShoppingCart, perm: "order:read", feature: "oms" },
     { href: "/returns", label: "Retur", icon: Undo2, perm: "returns:read", feature: "oms" },
@@ -22,6 +25,7 @@ const GROUPS: { title: string | null; items: Item[] }[] = [
   { title: "Stok & produk", items: [
     { href: "/inventory", label: "Stok barang", icon: Boxes, perm: "inventory:read", feature: "oms" },
     { href: "/products", label: "Produk", icon: Package, perm: "product:read" },
+    { href: "/imports", label: "Impor data", icon: FileSpreadsheet, perm: "import:run" },
   ] },
   { title: "Gudang", items: [
     { href: "/wms", label: "Kerja gudang", icon: ClipboardList, perm: "wms:read", feature: "wms" },
@@ -30,6 +34,7 @@ const GROUPS: { title: string | null; items: Item[] }[] = [
   ] },
   { title: "Laporan", items: [
     { href: "/analytics", label: "Analitik", icon: ChartColumn, perm: "analytics:read", feature: "oms" },
+    { href: "/ai", label: "Prediksi (AI)", icon: Sparkles, perm: "ai:read", feature: "ai" },
     { href: "/noc", label: "Pantau sistem", icon: Activity, perm: "analytics:read", feature: "analytics" },
     { href: "/audit", label: "Riwayat aktivitas", icon: History, perm: "audit:read" },
   ] },

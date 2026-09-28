@@ -1,0 +1,26 @@
+{$DOMAIN} {
+	tls {$EMAIL}
+	encode gzip
+
+	# Metrik Prometheus tidak boleh terbuka ke internet
+	handle /metrics* {
+		respond 404
+	}
+
+	# Webhook kurir & pembayaran masuk langsung ke API (tanpa cookie sesi)
+	handle /ext/api/v1/* {
+		uri strip_prefix /ext
+		reverse_proxy api:8000
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+}

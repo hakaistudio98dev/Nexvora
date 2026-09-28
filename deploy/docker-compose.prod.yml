@@ -1,0 +1,26 @@
+# Lapisan produksi: HTTPS otomatis (Let's Encrypt) lewat Caddy, port database tidak dibuka keluar.
+# Dipakai bersama docker-compose.yml:
+#   DOMAIN=nexvora.contoh.id EMAIL=admin@contoh.id docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml up -d
+services:
+  nginx:
+    profiles: [disabled]        # digantikan Caddy
+
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN wajib diisi}
+      EMAIL: ${EMAIL:?EMAIL wajib diisi}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [web, api]
+
+  postgres:
+    ports: []                   # database hanya dijangkau dari jaringan Docker
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -23,7 +23,7 @@ def ratio(a: float, b: float) -> float | None:
 
 async def params(s: AsyncSession, tenant_id: UUID, d_from: date | None, d_to: date | None,
                  warehouse_id: UUID | None, channel: str | None) -> dict:
-    st = await settings_svc.get(s, tenant_id)
+    st = await settings_svc.read(s, tenant_id)
     today = datetime.now(UTC).date()
     d_to = d_to or today
     d_from = d_from or d_to - timedelta(days=29)

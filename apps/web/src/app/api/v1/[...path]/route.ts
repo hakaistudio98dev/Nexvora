@@ -21,10 +21,13 @@ async function handle(req: NextRequest, { params }: { params: { path: string[] }
   if (!isSameOrigin(req)) return errorJson(403, "BAD_ORIGIN", "Origin tidak diizinkan");
 
   const url = `${API_URL}/api/v1/${path}${req.nextUrl.search}`;
-  const body = ["GET", "HEAD"].includes(req.method) ? undefined : await req.text();
+  // Body diteruskan apa adanya (ArrayBuffer) supaya unggahan file multipart tidak rusak;
+  // Content-Type asli ikut diteruskan karena batas (boundary) multipart ada di sana.
+  const contentType = req.headers.get("content-type") ?? "application/json";
+  const body = ["GET", "HEAD"].includes(req.method) ? undefined : await req.arrayBuffer();
 
   const call = (token?: string) => {
-    const h = forwardHeaders(req, { "Content-Type": "application/json" });
+    const h = forwardHeaders(req, { "Content-Type": contentType });
     if (token) h.set("Authorization", `Bearer ${token}`);
     const idem = req.headers.get("idempotency-key");
     if (idem) h.set("Idempotency-Key", idem);
@@ -61,8 +64,8 @@ async function handle(req: NextRequest, { params }: { params: { path: string[] }
       "Cache-Control": "no-store",
     },
   });
-  if (refreshed) setSessionCookies(res, refreshed);
-  else if (upstream.status === 401) clearSessionCookies(res);
+  if (refreshed) setSessionCookies(res, refreshed, req);
+  else if (upstream.status === 401) clearSessionCookies(res, req);
   return res;
 }
 

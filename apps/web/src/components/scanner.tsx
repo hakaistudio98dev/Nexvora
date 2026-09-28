@@ -47,11 +47,19 @@ export function ScanInput({ label, placeholder, onScan, autoFocus = true, disabl
 function CameraScanner({ onResult, onClose }: { onResult: (code: string) => void; onClose: () => void }) {
   const video = useRef<HTMLVideoElement>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [hint, setHint] = useState<string | null>(null);
 
   useEffect(() => {
     let stop: (() => void) | null = null;
     let done = false;
     (async () => {
+      // Browser hanya mengizinkan kamera di HTTPS atau localhost. Tanpa itu, dialog izin
+      // tidak pernah muncul — jadi jelaskan sebabnya, bukan sekadar "kamera gagal".
+      if (typeof window !== "undefined" && (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia)) {
+        setErr("Kamera diblokir karena halaman ini dibuka lewat http biasa.");
+        setHint(`Buka lewat HTTPS, atau gunakan scanner genggam (mode keyboard) yang tetap berfungsi. Untuk uji coba: buka chrome://flags/#unsafely-treat-insecure-origin-as-secure di Chrome, isi ${window.location.origin}, pilih Enabled, lalu buka ulang Chrome.`);
+        return;
+      }
       try {
         const { BrowserMultiFormatReader } = await import("@zxing/browser");
         const reader = new BrowserMultiFormatReader();
@@ -60,8 +68,18 @@ function CameraScanner({ onResult, onClose }: { onResult: (code: string) => void
         });
         stop = () => controls.stop();
         if (done) stop();
-      } catch {
-        setErr("Kamera tidak bisa dibuka. Izinkan akses kamera, dan pastikan situs dibuka lewat HTTPS.");
+      } catch (e) {
+        const name = (e as { name?: string })?.name ?? "";
+        if (name === "NotAllowedError") {
+          setErr("Izin kamera ditolak.");
+          setHint("Ketuk ikon gembok di address bar Chrome → Izin situs → Kamera → Izinkan, lalu coba lagi.");
+        } else if (name === "NotFoundError" || name === "OverconstrainedError") {
+          setErr("Kamera tidak ditemukan di perangkat ini.");
+          setHint("Gunakan scanner genggam atau ketik kodenya manual.");
+        } else {
+          setErr("Kamera tidak bisa dibuka.");
+          setHint("Tutup aplikasi lain yang sedang memakai kamera, lalu coba lagi.");
+        }
       }
     })();
     return () => { done = true; stop?.(); };
@@ -71,7 +89,12 @@ function CameraScanner({ onResult, onClose }: { onResult: (code: string) => void
     <div role="dialog" aria-modal="true" aria-label="Scan kamera" className="fixed inset-0 z-50 flex flex-col bg-black">
       <video ref={video} className="h-full w-full flex-1 object-cover" muted playsInline />
       <div className="pointer-events-none absolute inset-x-8 top-1/3 h-1/4 rounded border-4 border-signal" aria-hidden="true" />
-      {err && <p className="absolute inset-x-4 top-4 rounded bg-white p-3 text-sm font-semibold text-danger">{err}</p>}
+      {err && (
+        <div role="alert" className="absolute inset-x-4 top-4 rounded-xl bg-white p-4 text-left">
+          <p className="font-semibold text-danger">{err}</p>
+          {hint && <p className="mt-1 break-words text-sm text-ink-soft">{hint}</p>}
+        </div>
+      )}
       <button type="button" onClick={onClose} className="m-4 min-h-14 rounded bg-white text-lg font-bold">Tutup kamera</button>
     </div>
   );

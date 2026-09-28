@@ -6,7 +6,8 @@ import { api, dt, errorText } from "@/lib/api";
 import { hasFeature } from "@/lib/saas";
 import type { NotifChannel } from "@/lib/types";
 
-type Settings = { sla_ship_hours: number; sla_risk_hours: number; low_stock_threshold: number; timezone: string };
+type Settings = { sla_ship_hours: number; sla_risk_hours: number; low_stock_threshold: number; timezone: string;
+  lead_time_days: number; service_level: number; cover_days: number };
 const TZ = ["Asia/Jakarta", "Asia/Pontianak", "Asia/Makassar", "Asia/Jayapura"];
 
 export default function SettingsPage() {
@@ -30,6 +31,12 @@ export default function SettingsPage() {
           <Field label="Peringatan dini (jam sebelum batas)">{(id) => <Input id={id} type="number" min={0} max={168} disabled={!canManage} value={st.sla_risk_hours} onChange={(e) => setSt({ ...st, sla_risk_hours: Number(e.target.value) })} />}</Field>
           <Field label="Batas stok menipis (default)" hint="Bisa diatur khusus per SKU di menu Produk">{(id) => <Input id={id} type="number" min={0} disabled={!canManage} value={st.low_stock_threshold} onChange={(e) => setSt({ ...st, low_stock_threshold: Number(e.target.value) })} />}</Field>
           <Field label="Zona waktu laporan">{(id) => <Select id={id} disabled={!canManage} value={st.timezone} onChange={(e) => setSt({ ...st, timezone: e.target.value })}>{TZ.map((z) => <option key={z}>{z}</option>)}</Select>}</Field>
+          <h2 className="mt-2 font-display text-lg font-bold sm:col-span-2">Pesan ulang stok</h2>
+          <p className="text-sm text-ink-muted sm:col-span-2">Dipakai untuk menghitung titik pesan ulang dan saran jumlah pesanan di menu Prediksi (AI).</p>
+          <Field label="Lama barang datang (hari)" hint="Dari pesan ke supplier sampai barang masuk gudang">{(id) => <Input id={id} type="number" min={0} max={180} disabled={!canManage} value={st.lead_time_days} onChange={(e) => setSt({ ...st, lead_time_days: Number(e.target.value) })} />}</Field>
+          <Field label="Stok ingin cukup untuk (hari)">{(id) => <Input id={id} type="number" min={1} max={365} disabled={!canManage} value={st.cover_days} onChange={(e) => setSt({ ...st, cover_days: Number(e.target.value) })} />}</Field>
+          <Field label="Target tidak kehabisan" hint="0,95 berarti siap menanggung kehabisan sekitar 5% waktu; makin tinggi, stok pengaman makin besar">{(id) => <Select id={id} disabled={!canManage} value={String(st.service_level)} onChange={(e) => setSt({ ...st, service_level: Number(e.target.value) })}>
+            {[["0.9", "90%"], ["0.95", "95%"], ["0.98", "98%"], ["0.99", "99%"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}</Select>}</Field>
           {canManage && <Button type="submit" className="sm:col-span-2 sm:justify-self-start">Simpan</Button>}
         </form>
       )}

@@ -3,12 +3,12 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   Boxes, CircleCheck, CircleCheckBig, Clock, Inbox, PackageCheck, PackagePlus, ScanLine, ShoppingCart, TriangleAlert, Truck,
-  Undo2, UserPlus, Warehouse as WarehouseIcon, type LucideIcon,
+  Sparkles, Undo2, UserPlus, Warehouse as WarehouseIcon, type LucideIcon,
 } from "lucide-react";
 import { useMe } from "@/components/me-context";
 import { api, dt } from "@/lib/api";
 import { hasFeature } from "@/lib/saas";
-import type { AuditLog, OrderStats, Page, Product, ReturnDoc, Shipment, User, Warehouse } from "@/lib/types";
+import type { AiSummary, AuditLog, OrderStats, Page, Product, ReturnDoc, Shipment, User, Warehouse } from "@/lib/types";
 
 type Task = { key: string; icon: LucideIcon; tone: "critical" | "warning" | "normal"; count: number; text: string; href: string; cta: string };
 type Step = { key: string; icon: LucideIcon; title: string; desc: string; done: boolean; href: string; cta: string };
@@ -50,7 +50,7 @@ export default function Dashboard() {
       const t: Task[] = [];
       const safe = async <T,>(p: Promise<T>): Promise<T | null> => { try { return await p; } catch { return null; } };
       const todayIso = new Date().toISOString().slice(0, 10);
-      const [stats, labelReady, returns, lowStock, sla, whs, products, invAny, users, series] = await Promise.all([
+      const [stats, labelReady, returns, lowStock, sla, whs, products, invAny, users, ai, series] = await Promise.all([
         can("order:read") && feat("oms") ? safe(api.get<OrderStats>("/orders/stats")) : null,
         can("shipping:read") && feat("oms") ? safe(api.get<Shipment[]>("/shipping/shipments?status=LABEL_READY&limit=500")) : null,
         can("returns:read") && feat("oms") ? safe(api.get<ReturnDoc[]>("/returns?status=OPEN")) : null,
@@ -60,6 +60,7 @@ export default function Dashboard() {
         can("product:read") ? safe(api.get<Page<Product>>("/products?limit=1")) : null,
         can("inventory:read") && feat("oms") ? safe(api.get<Page<unknown>>("/inventory?limit=1")) : null,
         can("user:read") ? safe(api.get<Page<User>>("/users?limit=1")) : null,
+        can("ai:read") && feat("ai") ? safe(api.get<AiSummary>("/ai/summary")) : null,
         can("analytics:read") ? safe(api.get<{ placed: number; shipped: number }[]>(`/analytics/timeseries?date_from=${todayIso}&date_to=${todayIso}`)) : null,
       ]);
       const b = stats?.by_status ?? {};
@@ -82,6 +83,10 @@ export default function Dashboard() {
       push({ key: "ret_decide", icon: Undo2, tone: "warning", count: returns?.filter((r) => r.status === "REQUESTED").length ?? 0, text: "pengajuan retur perlu diputuskan", href: "/returns", cta: "Tinjau retur" });
       push({ key: "ret_recv", icon: Undo2, tone: "normal", count: returns?.filter((r) => ["APPROVED", "RECEIVED", "INSPECTED"].includes(r.status)).length ?? 0, text: "retur sedang diproses di gudang", href: "/returns", cta: "Lanjutkan" });
       push({ key: "putaway", icon: ScanLine, tone: "normal", count: wmsOpen.putaway, text: "barang masuk belum disimpan ke rak", href: "/scan/putaway", cta: "Simpan ke rak" });
+      push({ key: "ai_stock", icon: Sparkles, tone: "warning", count: ai?.stockout_urgent ?? 0,
+        text: "SKU diperkirakan habis sebelum stok baru datang", href: "/ai", cta: "Lihat saran pesan" });
+      push({ key: "ai_anom", icon: Sparkles, tone: "warning", count: ai?.anomalies_open ?? 0,
+        text: "temuan janggal perlu dicek", href: "/ai", cta: "Tinjau temuan" });
       push({ key: "low", icon: Boxes, tone: "warning", count: lowStock?.total ?? 0, text: "SKU stoknya menipis", href: "/inventory", cta: "Lihat stok" });
       push({ key: "unpaid", icon: Clock, tone: "normal", count: b.CREATED ?? 0, text: "order menunggu pembayaran", href: "/orders", cta: "Lihat order" });
       setTasks(t);

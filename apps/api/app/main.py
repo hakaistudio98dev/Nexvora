@@ -1,12 +1,15 @@
 import logging
 
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, FastAPI, Request
+from fastapi.responses import PlainTextResponse
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app.core.config import get_settings
 from app.core.db import engine
-from app.core.errors import register_error_handlers
+from app.core import metrics
+from app.core.errors import AppError, register_error_handlers
 from app.core.middleware import CorrelationIdMiddleware, SecurityHeadersMiddleware
 from app.modules.audit.router import router as audit_router
 from app.modules.auth.router import router as auth_router
@@ -23,6 +26,9 @@ from app.modules.platform.router import router as platform_router
 from app.modules.public.router import router as public_router
 from app.modules.returns.router import router as returns_router
 from app.modules.shipping.router import router as shipping_router
+from app.modules.ai.router import router as ai_router
+from app.modules.assistant.router import router as assistant_router
+from app.modules.imports.router import router as imports_router
 from app.modules.analytics.router import router as analytics_router
 from app.modules.notifications.router import router as notifications_router
 from app.modules.reports.router import router as reports_router
@@ -33,11 +39,13 @@ settings = get_settings()
 
 app = FastAPI(
     title=settings.app_name,
-    version="0.6.0",
+    version="0.9.0",
     docs_url=None if settings.env == "production" else "/docs",
     redoc_url=None,
     openapi_url=None if settings.env == "production" else "/openapi.json",
 )
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+app.add_middleware(metrics.MetricsMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(CorrelationIdMiddleware)
 app.add_middleware(
@@ -51,9 +59,21 @@ v1 = APIRouter(prefix="/api/v1")
 for r in (auth_router, tenants_router, users_router, catalog_router, warehouses_router, inventory_router,
           orders_router, wms_router, audit_router, billing_router, apikeys_router, platform_router,
           public_router, shipping_router, returns_router, analytics_router, notifications_router, reports_router,
-          settings_router):
+          settings_router, ai_router, assistant_router, imports_router):
     v1.include_router(r)
 app.include_router(v1)
+
+
+@app.get("/metrics", include_in_schema=False)
+async def prometheus_metrics(request: Request):
+    """Dipakai Prometheus. Tidak diekspos lewat Nginx; bila perlu dibuka, set METRICS_TOKEN."""
+    if not settings.metrics_enabled:
+        raise AppError(404, "NOT_FOUND", "Metrics dimatikan")
+    if settings.metrics_token:
+        auth = request.headers.get("authorization", "")
+        if auth != f"Bearer {settings.metrics_token}":
+            raise AppError(401, "UNAUTHORIZED", "Token metrics tidak valid")
+    return PlainTextResponse(metrics.render().decode(), media_type="text/plain; version=0.0.4; charset=utf-8")
 
 
 @app.get("/healthz", tags=["ops"])

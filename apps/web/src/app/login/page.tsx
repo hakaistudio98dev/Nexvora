@@ -2,6 +2,7 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Alert, Button, Field, Input } from "@/components/ui";
+import { api } from "@/lib/api";
 
 function LoginForm() {
   const router = useRouter();
@@ -20,12 +21,21 @@ function LoginForm() {
       const r = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tenant: tenant.trim().toLowerCase(), email: email.trim(), password }),
+        body: JSON.stringify({ tenant: tenant.trim().toLowerCase(), email: email.trim().toLowerCase(), password }),
       });
       if (!r.ok) {
         const d = await r.json().catch(() => null);
         setError(r.status === 429 ? "Terlalu banyak percobaan. Tunggu satu menit lalu coba lagi."
           : d?.error?.message ?? "Login gagal. Periksa data Anda.");
+        return;
+      }
+      // Pastikan cookie sesi benar-benar tersimpan. Browser ponsel menolak cookie Secure
+      // di alamat http:// biasa, dan tanpa pengecekan ini pengguna hanya terlempar balik ke sini.
+      try {
+        await api.get("/auth/me");
+      } catch {
+        setError("Login berhasil, tetapi browser tidak menyimpan cookie sesi. Buka aplikasi lewat HTTPS, "
+          + "atau minta admin menjalankan server dengan COOKIE_SECURE=false untuk pemakaian di jaringan lokal.");
         return;
       }
       const next = params.get("next");
@@ -42,10 +52,12 @@ function LoginForm() {
     <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
       {error && <Alert>{error}</Alert>}
       <Field label="Kode workspace" hint="Didapat saat mendaftar, mis. toko-anda">
-        {(id) => <Input id={id} value={tenant} onChange={(e) => setTenant(e.target.value)} autoComplete="organization" required />}
+        {(id) => <Input id={id} value={tenant} onChange={(e) => setTenant(e.target.value)} autoComplete="organization" required
+                                autoCapitalize="none" autoCorrect="off" spellCheck={false} inputMode="url" />}
       </Field>
       <Field label="Email">
-        {(id) => <Input id={id} type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" required />}
+        {(id) => <Input id={id} type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" required
+                                autoCapitalize="none" autoCorrect="off" spellCheck={false} />}
       </Field>
       <Field label="Password">
         {(id) => <Input id={id} type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />}

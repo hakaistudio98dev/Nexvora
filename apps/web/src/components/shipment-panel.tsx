@@ -4,7 +4,7 @@ import { useCan } from "@/components/me-context";
 import { Alert, Badge, Button, Field, Input, Modal, Select } from "@/components/ui";
 import { api, dt, errorText, rupiah } from "@/lib/api";
 import { SHIP_STATUS, shipTone } from "@/lib/shipping";
-import type { Courier, CourierAccount, OrderDetail, Rate, Shipment } from "@/lib/types";
+import type { Courier, CourierAccount, CourierRec, OrderDetail, Rate, Shipment } from "@/lib/types";
 
 /** Bagian pengiriman & retur di detail order. */
 export function ShipmentPanel({ order, onChanged }: { order: OrderDetail; onChanged: () => void }) {
@@ -74,9 +74,12 @@ function CreateShipment({ order, onDone }: { order: OrderDetail; onDone: (s: Shi
   const [resi, setResi] = useState("");
   const [cost, setCost] = useState("");
   const [rates, setRates] = useState<Rate[] | null>(null);
+  const [tip, setTip] = useState<CourierRec["candidates"][number] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
+    // Saran kurir hanya muncul bila paket mendukung; kegagalan diabaikan diam-diam.
+    api.get<CourierRec>(`/ai/courier?order_id=${order.id}`).then((r) => setTip(r.candidates[0] ?? null)).catch(() => undefined);
     Promise.all([api.get<CourierAccount[]>("/shipping/accounts"), api.get<Courier[]>("/shipping/couriers")]).then(([a, c]) => {
       const active = a.filter((x) => x.is_active);
       setAccounts(active); setCouriers(c);
@@ -103,6 +106,14 @@ function CreateShipment({ order, onDone }: { order: OrderDetail; onDone: (s: Shi
   return (
     <form onSubmit={submit} className="flex flex-col gap-3 rounded-lg border border-concrete-line p-3">
       {err && <Alert>{err}</Alert>}
+      {tip && (
+        <div className="rounded-lg border border-ok/30 bg-green-50 p-3 text-sm">
+          <p className="font-semibold text-ok">Disarankan: {tip.courier_code.toUpperCase()} {tip.service_code}</p>
+          <p className="text-ink-soft">{tip.reason} · dari {tip.n} pengiriman Anda sebelumnya</p>
+          <button type="button" className="mt-1 min-h-9 font-semibold underline"
+                  onClick={() => { setCourier(tip.courier_code); setService(tip.service_code); }}>Pakai saran ini</button>
+        </div>
+      )}
       <Field label="Akun kurir">{(id) => <Select id={id} value={acc} onChange={(e) => { setAcc(e.target.value); setRates(null); }}>{accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</Select>}</Field>
       {account && account.provider !== "manual" && (
         <div>

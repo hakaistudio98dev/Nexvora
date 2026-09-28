@@ -15,6 +15,17 @@ Implementasi PRD v1.0:
 - **Fase 5:** dashboard KPI (PRD §25), papan SLA, produktivitas tim, SKU terlaris, kesehatan stok & saran pesan ulang,
   NOC tenant & platform, ekspor CSV, notifikasi in-app/email/webhook (HMAC), pengaturan SLA & batas stok.
   Detail: [docs/FASE5_ANALITIK_NOTIFIKASI.md](docs/FASE5_ANALITIK_NOTIFIKASI.md).
+- **Fase 6:** outbox event transaksional, worker terpisah per pekerjaan (perawatan & pengiriman event), metrik
+  Prometheus di `/metrics`, dan read replica opsional untuk analitik.
+  Detail: [docs/FASE6_SKALA.md](docs/FASE6_SKALA.md).
+- **Fase 7:** ramalan permintaan per SKU, prediksi stok habis + saran pesan ulang, rekomendasi kurir dari data
+  pengiriman sendiri, dan deteksi anomali (7 detektor). Detail: [docs/FASE7_AI.md](docs/FASE7_AI.md).
+- **Asisten:** tanya data & beri perintah dengan bahasa Indonesia biasa; perintah selalu minta konfirmasi dan
+  tercatat di riwayat aktivitas. Jalan tanpa layanan AI luar (mode aturan) atau dengan Claude.
+  Detail: [docs/ASISTEN.md](docs/ASISTEN.md).
+- **Fase 8:** impor CSV massal (produk & stok awal) dengan pemeriksaan per baris, reservasi ulang otomatis begitu
+  stok datang, serta skrip deploy VPS (HTTPS otomatis) + backup harian beserta uji restore.
+  Detail: [docs/FASE8_IMPOR_DEPLOY.md](docs/FASE8_IMPOR_DEPLOY.md).
 
 ```
 nexvora/
@@ -22,7 +33,7 @@ nexvora/
 │   ├── api/                 FastAPI + SQLAlchemy 2 (async) + Alembic
 │   │   ├── app/core/        config, db (konteks RLS), security, deps (RBAC), audit, rate limit
 │   │   ├── app/models/      ORM model
-│   │   ├── app/modules/     auth · tenants · users · catalog · warehouses · inventory · orders · wms · billing · apikeys · platform · public · shipping · returns · analytics · reports · notifications · settings · audit
+│   │   ├── app/modules/     auth · tenants · users · catalog · warehouses · inventory · orders · wms · billing · apikeys · platform · public · shipping · returns · analytics · reports · notifications · settings · ai · assistant · imports · audit · outbox/events
 │   │   ├── app/workers/     worker latar (reservasi kedaluwarsa)
 │   │   ├── alembic/         migrasi SQL eksplisit + RLS + grants + seed RBAC
 │   │   ├── scripts/         bootstrap super admin / tenant demo
@@ -54,7 +65,7 @@ cd apps/api && pip install -r requirements-dev.txt
 export DATABASE_MIGRATION_URL=postgresql+psycopg://nexvora_owner:...@localhost:5432/nexvora
 export DATABASE_URL=postgresql+asyncpg://nexvora_app:...@localhost:5432/nexvora
 alembic upgrade head && uvicorn app.main:app --reload     # docs: http://localhost:8000/docs
-python -m pytest -q                                        # 57 tes: keamanan, stok, order, gudang, langganan, pengiriman, retur, analitik, notifikasi
+python -m pytest -q                                        # 84 tes: keamanan, stok, order, gudang, langganan, pengiriman, retur, analitik, notifikasi, skala, AI, asisten, impor
 
 # Web
 cd apps/web && cp .env.example .env.local && npm install && npm run dev
@@ -78,6 +89,9 @@ npm run gen:types     # generate tipe TypeScript dari OpenAPI (kontrak FE ↔ BE
 | GET/POST | `/api/v1/shipping/*`, `/api/v1/returns/*` | `shipping:*`, `returns:*` |
 | GET | `/api/v1/analytics/*`, `/api/v1/reports/{nama}.csv` | `analytics:read` (+ izin data terkait) |
 | GET/POST/PATCH | `/api/v1/notifications/*`, `/api/v1/settings` | `notification:*`, `settings:manage` |
+| GET/POST | `/api/v1/ai/*` | `ai:read`, `ai:manage` (paket Enterprise) |
+| GET/POST | `/api/v1/assistant/*` | `assistant:use` (+ izin perkakas yang dipakai) |
+| GET/POST | `/api/v1/imports/*` | `import:run` (+ `product:write` / `inventory:write`) |
 
 Format error seragam: `{"error": {"code", "message", "correlation_id", "details?"}}`.
 
@@ -86,14 +100,18 @@ Cukup jalankan lagi `start.ps1` (atau `docker compose up --build -d`). Container
 baru otomatis (`0002_oms_inventory`, `0003_wms`); data lama tetap utuh. Stok dari Fase 2 muncul sebagai
 "belum di bin" dan bisa ditempatkan lewat Scanner → Putaway.
 
-## Scanner di ponsel
-Buka `http://<IP-komputer>/scan` dari ponsel di jaringan yang sama untuk scanner genggam. **Kamera** hanya aktif
-lewat HTTPS; untuk uji lokal gunakan `http://localhost/scan` di komputer, atau pasang TLS di Nginx.
+## Membuka dari ponsel (jaringan lokal)
+1. Cari IP komputer: `ipconfig` → IPv4 Address, mis. `192.168.1.5`.
+2. Izinkan port 80 di Windows Firewall bila diminta, lalu buka `http://192.168.1.5` dari ponsel.
+3. Biarkan `COOKIE_SECURE=auto` (default) selama masih http. Kalau login berhasil tetapi selalu kembali ke halaman
+   login, berarti cookie ditolak browser: set `COOKIE_SECURE=false` di `.env`, lalu `docker compose up -d web`.
+4. **Kamera scanner** hanya aktif di HTTPS atau di `localhost`. Untuk pemakaian sungguhan di gudang, pasang domain +
+   TLS; scanner genggam (mode keyboard) tetap bekerja tanpa HTTPS.
 
 ## Integrasi dari luar
 Sistem eksternal (marketplace, website, ERP) memanggil `http://<host>/ext/api/v1/...` dengan header `X-API-Key`.
 Pendaftaran pelanggan baru: `http://<host>/signup`.
 
 ## Berikutnya
-- **Fase 6 — Skala:** metrik Prometheus/OpenTelemetry, pemisahan worker per antrean, read replica untuk analitik.
-- **Fase 7 — AI:** forecasting permintaan, prediksi stok habis, rekomendasi kurir, deteksi anomali order.
+Seluruh roadmap PRD (Fase 1–7) plus asisten dan Fase 8 sudah selesai. Sebelum dipakai produksi: jalankan `deploy/setup_vps.sh` di VPS (domain + HTTPS + backup harian otomatis),
+uji restore sekali, lalu isi akun kurir & SMTP sungguhan.

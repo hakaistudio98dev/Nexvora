@@ -142,7 +142,8 @@ function Plans() {
 }
 
 type PNoc = { database: { status: string; latency_ms: number }; redis: { status: string }; worker: { status: string; seconds_since_beat: number | null };
-  queues: { notification_pending: number; notification_failed_24h: number; reservations_expiry_backlog: number };
+  queues: { notification_pending: number; notification_failed_24h: number; reservations_expiry_backlog: number;
+            outbox_pending: number; outbox_failed: number; outbox_lag_seconds: number };
   tenants: { by_subscription: Record<string, number>; total: number }; orders_24h: number };
 
 function Health() {
@@ -159,6 +160,8 @@ function Health() {
       {tile("Worker", d.worker.status === "ok", d.worker.seconds_since_beat == null ? "belum berjalan" : `detak ${d.worker.seconds_since_beat} detik lalu`)}
       {tile("Antrean notifikasi", d.queues.notification_failed_24h === 0, `${d.queues.notification_pending} antre · ${d.queues.notification_failed_24h} gagal 24 jam`)}
       {tile("Reservasi kedaluwarsa tertunda", d.queues.reservations_expiry_backlog === 0, `${d.queues.reservations_expiry_backlog} belum diproses`)}
+      {tile("Antrean event (outbox)", d.queues.outbox_failed === 0 && d.queues.outbox_lag_seconds < 300,
+        `${d.queues.outbox_pending} antre · ${d.queues.outbox_failed} gagal · tertunda ${d.queues.outbox_lag_seconds} detik`)}
       {tile("Tenant", true, `${d.tenants.total} total · ${Object.entries(d.tenants.by_subscription).map(([k, v]) => `${k} ${v}`).join(" · ")} · ${d.orders_24h} order 24 jam`)}
     </div>
   );

@@ -9,7 +9,7 @@ ADDR = {"address": "Jl. Sudirman No. 1", "city": "Jakarta"}
 
 
 async def setup_wh(client, sa_token):
-    slug, _, tok = await make_tenant(client, sa_token)
+    slug, email, tok = await make_tenant(client, sa_token)
     h = auth(tok["access_token"])
     prod = (await client.post("/api/v1/products", headers=h, json={"code": "TSH", "name": "Kaos"})).json()
     a = (await client.post(f"/api/v1/products/{prod['id']}/skus", headers=h,
@@ -26,7 +26,7 @@ async def setup_wh(client, sa_token):
         for bn in ("B1", "B2"):
             loc = (await client.post(base, headers=h, json={"type": "BIN", "code": bn, "parent_id": shelf["id"]})).json()
             bins[loc["full_code"]] = loc
-    return {"slug": slug, "h": h, "a": a, "b": b, "wh": wh, "bins": bins}
+    return {"slug": slug, "email": email, "h": h, "a": a, "b": b, "wh": wh, "bins": bins}
 
 
 async def receive_and_putaway(client, c, placements):
@@ -74,7 +74,7 @@ async def test_inbound_receiving_putaway_and_exceptions(client, sa_token):
     await client.post(f"/api/v1/wms/inbound/{inb['id']}/receive", headers=h, json={"barcode": "TSH-L", "quantity": 3})
     assert (await client.post(f"/api/v1/wms/inbound/{inb['id']}/receive", headers=h, json={"barcode": "NOPE"})).status_code == 404
     done = (await client.post(f"/api/v1/wms/inbound/{inb['id']}/complete", headers=h)).json()
-    assert done["result"] == {"putaway_tasks": 2, "units_received": 11, "units_damaged": 1}
+    assert done["result"] == {"putaway_tasks": 2, "units_received": 11, "units_damaged": 1, "orders_reallocated": 0}
     inv = {x["sku_code"]: x for x in (await client.get(f"/api/v1/inventory?warehouse_id={wh}", headers=h)).json()["items"]}
     assert (inv["TSH-M"]["on_hand"], inv["TSH-M"]["damaged"], inv["TSH-L"]["on_hand"]) == (8, 1, 3)
     exc = {e["exc_type"] for e in (await client.get(f"/api/v1/wms/exceptions?warehouse_id={wh}", headers=h)).json()}

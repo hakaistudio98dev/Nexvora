@@ -34,6 +34,7 @@ export const api = {
   get: <T>(p: string) => request<T>("GET", p),
   post: <T>(p: string, b?: unknown, headers?: Record<string, string>) => request<T>("POST", p, b ?? {}, headers),
   patch: <T>(p: string, b: unknown) => request<T>("PATCH", p, b),
+  delete: <T>(p: string) => request<T>("DELETE", p),
 };
 
 export function errorText(e: unknown): string {

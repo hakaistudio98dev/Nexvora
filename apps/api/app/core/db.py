@@ -21,10 +21,28 @@ engine = create_async_engine(
 )
 SessionLocal = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
 
+# Replika baca (opsional). Tanpa DATABASE_READ_URL, query analitik memakai database utama.
+read_engine = create_async_engine(_settings.database_read_url, pool_size=_settings.db_pool_size,
+                                  pool_pre_ping=True) if _settings.database_read_url else engine
+ReadSessionLocal = async_sessionmaker(read_engine, expire_on_commit=False, autoflush=False)
+HAS_READ_REPLICA = _settings.database_read_url is not None
+
 
 async def get_session() -> AsyncIterator[AsyncSession]:
     async with SessionLocal() as session:
         async with session.begin():
+            await session.execute(text(f"SET LOCAL statement_timeout = {_settings.statement_timeout_ms}"))
+            yield session
+
+
+async def get_read_session() -> AsyncIterator[AsyncSession]:
+    """Untuk analitik & laporan: transaksi read-only dengan batas waktu lebih longgar,
+    diarahkan ke replika bila tersedia."""
+    async with ReadSessionLocal() as session:
+        async with session.begin():
+            await session.execute(text(
+                f"SET LOCAL statement_timeout = {_settings.read_statement_timeout_ms}"))
+            await session.execute(text("SET TRANSACTION READ ONLY"))
             yield session
 
 

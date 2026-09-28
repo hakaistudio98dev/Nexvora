@@ -25,7 +25,11 @@
 - **Self-signup** dibatasi rate limit per IP (API + Nginx) dan kode workspace yang dicadangkan.
 
 ## Lapisan web (Next.js BFF)
-- Token disimpan di cookie **httpOnly + SameSite=Strict + Secure** (production); JavaScript browser tidak pernah melihat token.
+- Token disimpan di cookie **httpOnly**; JavaScript browser tidak pernah melihat token. Cookie akses memakai
+  `SameSite=Lax` (agar sesi tetap terbawa saat aplikasi dibuka dari tautan luar), cookie refresh `SameSite=Strict`
+  dan hanya berlaku di path `/api`. Flag `Secure` mengikuti protokol pengunjung; atur `COOKIE_SECURE=true` begitu
+  domain sudah memakai HTTPS. Perlindungan CSRF tidak bergantung pada SameSite — setiap request pengubah data
+  tetap dicek Origin-nya.
 - Proxy `/api/v1/*` menolak request pengubah data dari origin lain (CSRF), memblokir endpoint token, memvalidasi segmen path, dan melakukan refresh otomatis.
 - CSP ketat, `X-Frame-Options: DENY`, `poweredByHeader` mati.
 

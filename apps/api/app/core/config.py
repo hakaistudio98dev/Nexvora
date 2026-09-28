@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     db_pool_size: int = 10
 
     redis_url: str | None = None
+    # Opsional: replika baca untuk analitik & laporan agar query berat tidak membebani database utama
+    database_read_url: str | None = None
+    statement_timeout_ms: int = 30_000
+    read_statement_timeout_ms: int = 60_000
 
     jwt_secret: str = Field(default="dev-only-change-me-dev-only-change-me", min_length=32)
     jwt_issuer: str = "nexvora-api"
@@ -58,6 +62,19 @@ class Settings(BaseSettings):
     smtp_from: str = "Nexvora <no-reply@nexvora.local>"
     smtp_starttls: bool = True
     allow_http_webhooks: bool = False          # hanya untuk development
+
+    # ---- Skala & observability
+    metrics_enabled: bool = True
+    metrics_token: str | None = None            # bila diisi, /metrics butuh Bearer token ini
+    event_bus: str = "none"                     # none | redis  (stream "nexvora.events")
+    event_stream: str = "nexvora.events"
+    event_stream_maxlen: int = 100_000
+    worker_jobs: str = "maintenance,dispatcher" # job yang dijalankan proses worker ini
+
+    # ---- Asisten dalam aplikasi
+    assistant_engine: str = "auto"             # auto | rules | llm
+    anthropic_api_key: str | None = None       # kosong = mesin aturan (tidak ada data yang keluar)
+    assistant_model: str = "claude-sonnet-4-5"
 
     cors_origins: list[str] = ["http://localhost:3000"]
 

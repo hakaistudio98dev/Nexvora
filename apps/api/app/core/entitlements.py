@@ -16,18 +16,19 @@ from app.core.errors import AppError
 from app.models import Plan, Sku, Subscription, User, Warehouse
 
 FEATURE_BY_PREFIX = {"wms": "wms", "order": "oms", "inventory": "oms", "apikey": "api_keys",
-                     "shipping": "oms", "returns": "oms", "analytics": "oms", "notification": "oms"}
+                     "shipping": "oms", "returns": "oms", "analytics": "oms", "notification": "oms", "ai": "oms"}
 FEATURE_LABEL = {"oms": "Order & Inventory", "wms": "Gudang (WMS) & scanner", "api_keys": "API key integrasi",
                  "shipping_integration": "Integrasi kurir otomatis",
                  "analytics": "Analitik lanjutan (SLA, produktivitas, kesehatan stok, NOC)",
                  "webhooks": "Webhook notifikasi",
+                 "ai": "Prediksi & saran otomatis (AI)",
                  "priority_support": "Dukungan prioritas"}
 WRITE_ACTIONS = {"write", "manage", "operate", "adjust", "fulfill"}
 READONLY_EXEMPT = {"billing"}
 LIMIT_LABEL = {"warehouses": "gudang aktif", "users": "pengguna aktif", "skus": "SKU aktif",
                "orders_per_month": "order per bulan"}
 FEATURE_MIN_PLAN = {"wms": "Growth", "api_keys": "Growth", "shipping_integration": "Growth", "analytics": "Growth",
-                    "webhooks": "Growth"}
+                    "webhooks": "Growth", "ai": "Enterprise"}
 
 
 @dataclass
@@ -116,6 +117,10 @@ async def enforce_limit(session: AsyncSession, p, key: str, adding: int = 1) -> 
         raise AppError(402, "PLAN_LIMIT",
                        f"Paket {ent.plan_name} dibatasi {limit} {LIMIT_LABEL[key]} (terpakai {current}). "
                        "Upgrade paket di menu Langganan atau nonaktifkan data yang tidak dipakai.")
+
+
+def has_feature(ent: "Entitlement", feature: str) -> bool:
+    return ent.unrestricted or feature in ent.features
 
 
 def require_feature(p, feature: str) -> None:  # noqa: ANN001

@@ -17,6 +17,9 @@ class SettingsOut(BaseModel):
     sla_risk_hours: int
     low_stock_threshold: int
     timezone: str
+    lead_time_days: int
+    service_level: float
+    cover_days: int
 
 
 class SettingsIn(BaseModel):
@@ -24,6 +27,9 @@ class SettingsIn(BaseModel):
     sla_risk_hours: int | None = Field(default=None, ge=0, le=168, description="Peringatan dini sebelum batas SLA")
     low_stock_threshold: int | None = Field(default=None, ge=0, le=1_000_000)
     timezone: str | None = Field(default=None, max_length=64)
+    lead_time_days: int | None = Field(default=None, ge=0, le=180, description="Lama barang datang setelah dipesan ke supplier")
+    service_level: float | None = Field(default=None, ge=0.5, le=0.999, description="Target tidak kehabisan stok, mis. 0.95")
+    cover_days: int | None = Field(default=None, ge=1, le=365, description="Stok ingin cukup untuk berapa hari")
 
     @field_validator("timezone")
     @classmethod
@@ -35,7 +41,9 @@ class SettingsIn(BaseModel):
 
 def _out(r) -> SettingsOut:  # noqa: ANN001
     return SettingsOut(sla_ship_hours=r.sla_ship_hours, sla_risk_hours=r.sla_risk_hours,
-                       low_stock_threshold=r.low_stock_threshold, timezone=r.timezone)
+                       low_stock_threshold=r.low_stock_threshold, timezone=r.timezone,
+                       lead_time_days=r.lead_time_days, service_level=float(r.service_level),
+                       cover_days=r.cover_days)
 
 
 @router.get("", response_model=SettingsOut)

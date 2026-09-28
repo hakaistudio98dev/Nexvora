@@ -23,6 +23,14 @@ x-api-env: &api-env
   SMTP_USER: ${SMTP_USER:-}
   SMTP_PASSWORD: ${SMTP_PASSWORD:-}
   SMTP_FROM: ${SMTP_FROM:-Nexvora <no-reply@nexvora.local>}
+  # ---- Skala (Fase 6)
+  ASSISTANT_ENGINE: ${ASSISTANT_ENGINE:-auto}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  ASSISTANT_MODEL: ${ASSISTANT_MODEL:-claude-sonnet-4-5}
+  METRICS_TOKEN: ${METRICS_TOKEN:-}
+  EVENT_BUS: ${EVENT_BUS:-db}
+  DATABASE_READ_URL: ${DATABASE_READ_URL:-}
+  STATEMENT_TIMEOUT_MS: ${STATEMENT_TIMEOUT_MS:-15000}
   CORS_ORIGINS: '["${PUBLIC_ORIGIN}"]'
 
 services:
@@ -76,11 +84,26 @@ services:
     # Sengaja TIDAK di-expose ke host: hanya web (BFF) yang memanggil API.
 
   worker:
-    # Lepas reservasi order belum dibayar yang kedaluwarsa + bersihkan Idempotency-Key lama
+    # Perawatan berkala: lepas reservasi kedaluwarsa, tarik status kurir, deteksi event notifikasi,
+    # jalankan siklus langganan. Aman dijalankan lebih dari satu replika (dilindungi advisory lock).
     build: ./apps/api
     restart: unless-stopped
     command: ["python", "-m", "app.workers.maintenance"]
-    environment: *api-env
+    environment:
+      <<: *api-env
+      WORKER_JOBS: maintenance,ai
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  dispatcher:
+    # Kirim event dari outbox (webhook integrasi & notifikasi) — dipisah agar antrean event
+    # tidak tertahan pekerjaan perawatan yang berat, dan bisa di-scale sendiri.
+    build: ./apps/api
+    restart: unless-stopped
+    command: ["python", "-m", "app.workers.maintenance"]
+    environment:
+      <<: *api-env
+      WORKER_JOBS: dispatcher
     depends_on:
       migrate: { condition: service_completed_successfully }
 
@@ -89,6 +112,8 @@ services:
     restart: unless-stopped
     environment:
       API_INTERNAL_URL: http://api:8000
+      # auto = Secure mengikuti protokol pengunjung (https). Set false bila diakses lewat http di jaringan lokal.
+      COOKIE_SECURE: ${COOKIE_SECURE:-auto}
     depends_on:
       api: { condition: service_healthy }
 
@@ -100,6 +125,18 @@ services:
       - ./infrastructure/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on: [web]
 
+  prometheus:
+    # Opsional: docker compose --profile observability up -d
+    image: prom/prometheus:v2.55.1
+    profiles: [observability]
+    restart: unless-stopped
+    volumes:
+      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports: ["9090:9090"]
+    depends_on: [api]
+
 volumes:
+  prometheus_data:
   pgdata:
   redisdata:

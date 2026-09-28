@@ -11,8 +11,7 @@ from fastapi.responses import Response
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.db import get_session
-from app.core.deps import Principal, get_principal
+from app.core.deps import Principal, get_principal, get_read_db
 from app.core.entitlements import check_permission
 from app.core.errors import AppError
 from app.modules.analytics.service import RANGE, F, params
@@ -91,7 +90,7 @@ async def available(p: Principal = Depends(get_principal)):
 @router.get("/{name}.csv")
 async def export(name: str, date_from: date | None = None, date_to: date | None = None, warehouse_id: UUID | None = None,
                  channel: str | None = Query(None, max_length=20), sep: str = Query("comma", pattern="^(comma|semicolon)$"),
-                 p: Principal = Depends(get_principal), s: AsyncSession = Depends(get_session)):
+                 p: Principal = Depends(get_principal), s: AsyncSession = Depends(get_read_db)):
     rep = REPORTS.get(name)
     if rep is None:
         raise AppError(404, "NOT_FOUND", "Laporan tidak dikenal")

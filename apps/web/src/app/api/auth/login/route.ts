@@ -19,6 +19,6 @@ export async function POST(req: NextRequest) {
   const data = await r.json().catch(() => null);
   if (!r.ok) return NextResponse.json(data ?? { error: { code: "UPSTREAM", message: "Login gagal" } }, { status: r.status });
   const res = NextResponse.json({ ok: true });
-  setSessionCookies(res, data as TokenPair);
+  setSessionCookies(res, data as TokenPair, req);
   return res;
 }

@@ -7,7 +7,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core import audit, crypto
+from app.core import audit, crypto, events
 from app.core.context import Ctx
 from app.core.errors import AppError
 from urllib.parse import quote
@@ -148,6 +148,10 @@ async def apply_status(s: AsyncSession, ctx: Ctx, sh: Shipment, status: str, des
         raise AppError(409, "NOT_HANDED_OVER", "Paket belum diserahkan ke kurir")
     add_event(s, ctx, sh, status, desc, source=source, location=location, occurred_at=occurred_at)
     sh.status = status
+    events.emit(s, tenant_id=sh.tenant_id, event_type="shipment.status_changed", aggregate_type="shipment",
+                aggregate_id=sh.id, correlation_id=ctx.correlation_id,
+                payload={"tracking_number": sh.tracking_number, "courier_code": sh.courier_code, "status": status,
+                         "description": desc, "location": location})
     sh.last_tracked_at = now()
     order = await s.scalar(select(Order).where(Order.id == sh.order_id).with_for_update())
     from app.modules.orders.service import record_status  # noqa: PLC0415

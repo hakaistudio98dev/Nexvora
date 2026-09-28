@@ -16,6 +16,7 @@ from app.core.utils import escape_like
 from app.models import InventoryBalance, InventoryLedger, Location, Order, Product, Sku, Warehouse
 from app.modules.inventory import service as inv
 from app.modules.orders import service as order_service
+from app.modules.orders.service import retry_holds
 from app.modules.settings import service as settings_svc
 from app.modules.wms import common as wms_common
 
@@ -220,7 +221,10 @@ async def receive(body: ReceiptIn, p: Principal = Depends(require("inventory:wri
                        after={"reference": body.reference, "lines": [
                            {"sku": skus[x.sku_id].sku_code, "qty": x.quantity} for x in body.lines]},
                        correlation_id=p.correlation_id, ip=p.ip)
-    return {"received_lines": len(body.lines), "units": sum(x.quantity for x in body.lines)}
+    # Stok baru masuk → order yang tadi tertahan langsung dicoba dialokasikan ulang
+    reallocated = await retry_holds(s, ctx, p.tenant_id)
+    return {"received_lines": len(body.lines), "units": sum(x.quantity for x in body.lines),
+            "orders_reallocated": reallocated}
 
 
 @router.post("/adjustments", status_code=201)

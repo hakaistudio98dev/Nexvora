@@ -171,6 +171,10 @@ async def platform_noc(p: Principal = Depends(ADMIN), s: AsyncSession = Depends(
                          FROM notification_deliveries""")).one()
     orders24 = (await q1("SELECT count(*) FROM orders WHERE placed_at > now() - interval '24 hours'")).scalar()
     overdue_res = (await q1("""SELECT count(*) FROM reservations WHERE status = 'ACTIVE' AND expires_at < now() - interval '5 minutes'""")).scalar()
+    outbox = (await q1("""SELECT count(*) FILTER (WHERE status = 'PENDING') pending,
+                                 count(*) FILTER (WHERE status = 'FAILED') failed,
+                                 EXTRACT(epoch FROM now() - min(created_at) FILTER (WHERE status = 'PENDING')) lag
+                          FROM outbox_events""")).one()
     worker_age = (now - hb.beat_at).total_seconds() if hb else None
     return {
         "database": {"status": "ok", "latency_ms": db_ms},
@@ -179,7 +183,8 @@ async def platform_noc(p: Principal = Depends(ADMIN), s: AsyncSession = Depends(
                    "seconds_since_beat": int(worker_age) if worker_age is not None else None,
                    "last_run": hb.info if hb else None},
         "queues": {"notification_pending": deliv.pending, "notification_failed_24h": deliv.failed,
-                   "reservations_expiry_backlog": overdue_res},
+                   "reservations_expiry_backlog": overdue_res, "outbox_pending": outbox.pending,
+                   "outbox_failed": outbox.failed, "outbox_lag_seconds": int(outbox.lag or 0)},
         "tenants": {"by_subscription": subs, "total": sum(subs.values())},
         "orders_24h": orders24,
     }

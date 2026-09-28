@@ -33,6 +33,8 @@ EVENTS: dict[str, tuple[str, str, bool]] = {
     "WMS_EXCEPTION": ("Exception gudang", "WARNING", True),
     "RETURN_REQUESTED": ("Retur baru", "INFO", True),
     "SUBSCRIPTION": ("Langganan", "WARNING", True),
+    "AI_STOCKOUT_RISK": ("Prediksi stok akan habis", "WARNING", True),
+    "AI_ANOMALY": ("Temuan anomali", "WARNING", True),
     "ORDER_STATUS": ("Status order berubah (untuk integrasi)", "INFO", False),
 }
 BACKOFF = [60, 300, 1800, 7200, 21600]
@@ -161,20 +163,6 @@ async def scan_all(s: AsyncSession) -> int:
                         link="/billing", dedup_key=key):
             n += 1
 
-    # Perubahan status order → hanya untuk kanal webhook yang berlangganan ORDER_STATUS
-    for r in (await q("""
-        SELECT h.id, h.tenant_id, h.to_status, h.from_status, h.reason, o.order_number, o.external_ref, o.channel
-        FROM order_status_history h JOIN orders o ON o.id = h.order_id
-        WHERE h.created_at > now() - interval '15 minutes'
-          AND EXISTS (SELECT 1 FROM notification_channels c WHERE c.tenant_id = h.tenant_id AND c.is_active
-                      AND c.events ? 'ORDER_STATUS')
-        ORDER BY h.id
-    """)).all():
-        if await notify(s, r.tenant_id, "ORDER_STATUS", f"{r.order_number}: {r.to_status}", r.reason or "",
-                        data={"order_number": r.order_number, "external_ref": r.external_ref, "channel": r.channel,
-                              "from_status": r.from_status, "to_status": r.to_status},
-                        dedup_key=f"os:{r.id}"):
-            n += 1
     return n
 
 

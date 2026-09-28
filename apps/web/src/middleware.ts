@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 // Guard ringan: halaman aplikasi butuh cookie sesi. Validasi token sebenarnya tetap di API.
-const PROTECTED = ["/dashboard", "/orders", "/inventory", "/wms", "/scan", "/billing", "/api-keys", "/platform", "/shipping", "/returns", "/label", "/analytics", "/noc", "/notifications", "/settings", "/products", "/warehouses", "/users", "/audit"];
+const PROTECTED = ["/dashboard", "/orders", "/inventory", "/wms", "/scan", "/billing", "/api-keys", "/platform", "/shipping", "/returns", "/label", "/analytics", "/ai", "/assistant", "/imports", "/noc", "/notifications", "/settings", "/products", "/warehouses", "/users", "/audit"];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

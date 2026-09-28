@@ -129,10 +129,13 @@ async def test_out_of_stock_goes_to_hold_then_retry(client, sa_token):
     assert o["status"] == "PAID" and o["stock_status"] == "OUT_OF_STOCK"
     assert any(a["name"] == "reserve" for a in o["actions"])
     assert (await client.post(f"/api/v1/inventory/reserve", headers=h, json={"order_id": o["id"]})).status_code == 409
-    await client.post("/api/v1/inventory/receipts", headers=h,
-                      json={"warehouse_id": c["jkt"]["id"], "lines": [{"sku_id": c["a"]["id"], "quantity": 5}]})
-    r = await client.post("/api/v1/inventory/reserve", headers=h, json={"order_id": o["id"]})
-    assert r.status_code == 200 and r.json()["status"] == "ALLOCATED"
+    # Stok masuk → order yang tertahan dialokasikan otomatis, tanpa perlu ditekan manual
+    rec = await client.post("/api/v1/inventory/receipts", headers=h,
+                            json={"warehouse_id": c["jkt"]["id"], "lines": [{"sku_id": c["a"]["id"], "quantity": 5}]})
+    assert rec.json()["orders_reallocated"] == 1
+    assert (await client.get(f"/api/v1/orders/{o['id']}", headers=h)).json()["status"] == "ALLOCATED"
+    # Menekan "coba alokasikan lagi" setelahnya tidak mengubah apa-apa (sudah teralokasi)
+    assert (await client.post("/api/v1/inventory/reserve", headers=h, json={"order_id": o["id"]})).status_code == 409
     stats = (await client.get("/api/v1/orders/stats", headers=h)).json()
     assert stats["out_of_stock"] == 0 and stats["by_status"]["ALLOCATED"] == 1
 
@@ -204,7 +207,10 @@ async def test_reservation_expiry_cancels_unpaid(client, sa_token):
     assert result["expired_orders"] >= 1
     o = (await client.get(f"/api/v1/orders/{o['id']}", headers=h)).json()
     assert o["status"] == "CANCELLED" and o["reservations"][0]["status"] == "EXPIRED"
-    assert (await bal(client, h, c["jkt"]["id"], c["a"]["id"]))["available"] == 3
+    # Stok yang dilepas langsung dipakai order berbayar yang tadi tertahan (antrean otomatis)
+    assert result["orders_reallocated"] == 1
+    assert (await client.get(f"/api/v1/orders/{paid['id']}", headers=h)).json()["status"] == "ALLOCATED"
+    assert (await bal(client, h, c["jkt"]["id"], c["a"]["id"]))["available"] == 2
 
 
 async def test_ledger_and_history_append_only(client, sa_token):

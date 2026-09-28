@@ -4,7 +4,7 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core import audit
+from app.core import audit, events
 from app.core.context import Ctx
 from app.core.errors import AppError
 from app.models import Order, Return, ReturnLine, Sku, WmsTask
@@ -53,6 +53,9 @@ async def create(s: AsyncSession, ctx: Ctx, order: Order, lines: list[tuple], re
         s.add(ReturnLine(tenant_id=ctx.tenant_id, return_id=r.id, order_item_id=item_id,
                          sku_id=items[item_id].sku_id, quantity=qty))
     await record_status(s, ctx, order, "RETURN_REQUESTED", f"{r.number}: {reason}")
+    events.emit(s, tenant_id=ctx.tenant_id, event_type="return.created", aggregate_type="return", aggregate_id=r.id,
+                correlation_id=ctx.correlation_id,
+                payload={"number": r.number, "order_number": order.order_number, "reason": reason, "status": r.status})
     await audit.record(s, tenant_id=ctx.tenant_id, actor_user_id=ctx.actor_user_id, action="return.created",
                        entity_type="return", entity_id=r.id,
                        after={"number": r.number, "order": order.order_number, "reason": reason},
@@ -164,6 +167,10 @@ async def resolve(s: AsyncSession, ctx: Ctx, r: Return, resolution: str, amount:
                    for ln in lines])
         r.replacement_order_id = replacement.id
     r.resolution, r.status, r.closed_at = resolution, "CLOSED", now()
+    events.emit(s, tenant_id=ctx.tenant_id, event_type="return.closed", aggregate_type="return", aggregate_id=r.id,
+                correlation_id=ctx.correlation_id,
+                payload={"number": r.number, "order_number": order.order_number, "resolution": resolution,
+                         "refund_amount": str(amount) if amount else None})
     await audit.record(s, tenant_id=ctx.tenant_id, actor_user_id=ctx.actor_user_id, action="return.closed",
                        entity_type="return", entity_id=r.id,
                        after={"number": r.number, "resolution": resolution, "refund": str(amount) if amount else None,

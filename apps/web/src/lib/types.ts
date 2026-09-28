@@ -166,3 +166,31 @@ export type AppNotification = { id: string; event_type: string; severity: "INFO"
   link: string | null; read: boolean; created_at: string };
 export type NotifChannel = { id: string; kind: "EMAIL" | "WEBHOOK"; name: string; target: string; events: string[]; is_active: boolean;
   has_secret: boolean; created_at: string; deliveries: { sent: number; pending: number; failed: number }; secret?: string };
+
+// ---------------- Fase 7: prediksi & saran (AI) ----------------
+export type StockoutItem = {
+  warehouse: string; warehouse_id: string; sku_id: string; sku_code: string; product_name: string;
+  available: number; on_hand: number; reserved: number; incoming: number; daily_rate: number; sold_30d: number;
+  method: string; history_days: number; days_until_out: number | null; stockout_date: string | null;
+  safety_stock: number; reorder_point: number; suggested_order: number;
+  risk: "habis" | "kritis" | "waspada" | "aman"; generated_at: string;
+};
+export type DemandDetail = {
+  sku_code: string; product_name: string; warehouse: string; available: number; method: string; daily_rate: number;
+  sigma: number; history_days: number; sold_30d: number; generated_at: string;
+  history: { date: string; actual: number }[];
+  forecast: { date: string; expected: number; low: number; high: number }[];
+};
+export type CourierRec = {
+  city: string | null; basis: string; note: string;
+  candidates: { courier_code: string; service_code: string; n: number; delivered: number; failed: number;
+    reliability: number; speed_days: number | null; cost: number | null; score: number; reason: string }[];
+};
+export type AnomalyItem = {
+  id: string; kind: string; kind_label: string; severity: "INFO" | "WARNING" | "CRITICAL"; title: string;
+  detail: string; score: number; entity_type: string | null; entity_id: string | null; entity_label: string | null;
+  data: Record<string, unknown>; status: "OPEN" | "ACK" | "DISMISSED"; created_at: string; decided_at: string | null;
+};
+export type AiSummary = { stockout_urgent: number; stockout_watch: number; anomalies_open: number;
+  top_reorder: { sku_code: string; warehouse: string; days_until_out: number | null; suggested_order: number }[];
+  anomalies: AnomalyItem[] };

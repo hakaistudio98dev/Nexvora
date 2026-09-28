@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import entitlements, ratelimit
-from app.core.db import get_session, set_tenant_context
+from app.core.db import get_read_session, get_session, set_tenant_context
 from app.core.errors import AppError
 from app.core.middleware import client_ip
 from app.core.security import decode_access_token, hash_token
@@ -128,3 +128,10 @@ async def get_human(p: Principal = Depends(get_principal)) -> Principal:
     if not p.is_human:
         raise AppError(403, "HUMAN_ONLY", "Endpoint ini hanya untuk pengguna yang login, bukan API key")
     return p
+
+
+async def get_read_db(p: Principal = Depends(get_principal), s: AsyncSession = Depends(get_read_session)) -> AsyncSession:
+    """Sesi khusus baca (analitik & laporan): read-only, boleh diarahkan ke replika.
+    Konteks tenant tetap dipasang agar Row-Level Security berlaku sama seperti sesi biasa."""
+    await set_tenant_context(s, p.tenant_id, superadmin=p.superadmin)
+    return s

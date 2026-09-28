@@ -6,8 +6,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import entitlements
-from app.core.db import get_session
-from app.core.deps import Principal, require
+from app.core.deps import Principal, get_read_db, require
 from app.modules.analytics import service
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
@@ -24,46 +23,46 @@ async def _p(s: AsyncSession, p: Principal, f: dict) -> dict:
 
 @router.get("/overview")
 async def overview(f: dict = Depends(_filters), p: Principal = Depends(require("analytics:read")),
-                   s: AsyncSession = Depends(get_session)):
+                   s: AsyncSession = Depends(get_read_db)):
     return await service.overview(s, await _p(s, p, f))
 
 
 @router.get("/timeseries")
 async def timeseries(f: dict = Depends(_filters), p: Principal = Depends(require("analytics:read")),
-                     s: AsyncSession = Depends(get_session)):
+                     s: AsyncSession = Depends(get_read_db)):
     return await service.timeseries(s, await _p(s, p, f))
 
 
 @router.get("/sla")
 async def sla(f: dict = Depends(_filters), p: Principal = Depends(require("analytics:read")),
-              s: AsyncSession = Depends(get_session)):
+              s: AsyncSession = Depends(get_read_db)):
     entitlements.require_feature(p, "analytics")
     return await service.sla_board(s, await _p(s, p, f))
 
 
 @router.get("/productivity")
 async def productivity(f: dict = Depends(_filters), p: Principal = Depends(require("analytics:read")),
-                       s: AsyncSession = Depends(get_session)):
+                       s: AsyncSession = Depends(get_read_db)):
     entitlements.require_feature(p, "analytics")
     return await service.productivity(s, await _p(s, p, f))
 
 
 @router.get("/top-skus")
 async def top_skus(f: dict = Depends(_filters), limit: int = Query(20, ge=1, le=100),
-                   p: Principal = Depends(require("analytics:read")), s: AsyncSession = Depends(get_session)):
+                   p: Principal = Depends(require("analytics:read")), s: AsyncSession = Depends(get_read_db)):
     entitlements.require_feature(p, "analytics")
     return await service.top_skus(s, await _p(s, p, f), limit)
 
 
 @router.get("/inventory-health")
 async def inventory_health(f: dict = Depends(_filters), p: Principal = Depends(require("analytics:read")),
-                           s: AsyncSession = Depends(get_session)):
+                           s: AsyncSession = Depends(get_read_db)):
     entitlements.require_feature(p, "analytics")
     return await service.inventory_health(s, await _p(s, p, f))
 
 
 @router.get("/noc")
-async def noc(p: Principal = Depends(require("analytics:read")), s: AsyncSession = Depends(get_session)):
+async def noc(p: Principal = Depends(require("analytics:read")), s: AsyncSession = Depends(get_read_db)):
     """Kesehatan operasional & integrasi workspace (PRD §13.3)."""
     entitlements.require_feature(p, "analytics")
     q = lambda sql, **kw: s.execute(text(sql), {"t": p.tenant_id, **kw})  # noqa: E731
@@ -85,6 +84,10 @@ async def noc(p: Principal = Depends(require("analytics:read")), s: AsyncSession
     exc = (await q("SELECT count(*) FROM wms_exceptions WHERE tenant_id = :t AND status = 'OPEN'")).scalar()
     hold = (await q("""SELECT count(*) FROM orders WHERE tenant_id = :t AND stock_status = 'OUT_OF_STOCK'
                        AND status IN ('CREATED','PAID')""")).scalar()
+    outbox = (await q("""SELECT count(*) FILTER (WHERE status = 'PENDING') pending,
+                                count(*) FILTER (WHERE status = 'FAILED') failed,
+                                EXTRACT(epoch FROM now() - min(created_at) FILTER (WHERE status = 'PENDING')) lag
+                         FROM outbox_events WHERE tenant_id = :t""")).one()
     deliv = (await q("""
         SELECT count(*) FILTER (WHERE status = 'PENDING') pending,
                count(*) FILTER (WHERE status = 'FAILED' AND created_at > now() - interval '24 hours') failed_24h
@@ -107,6 +110,9 @@ async def noc(p: Principal = Depends(require("analytics:read")), s: AsyncSession
         {"key": "tracking", "label": "Tracking kurir macet (>48 jam)",
          "status": "warning" if sum(c.stale for c in couriers) else "ok",
          "detail": f"{sum(c.stale for c in couriers)} paket tanpa update"},
+        {"key": "events", "label": "Antrean event ke sistem luar",
+         "status": "critical" if outbox.failed else "warning" if (outbox.lag or 0) > 300 else "ok",
+         "detail": f"{outbox.pending} menunggu · {outbox.failed} gagal · tertua {int(outbox.lag or 0)} detik"},
         {"key": "notifications", "label": "Pengiriman notifikasi", "status": "warning" if deliv.failed_24h else "ok",
          "detail": f"{deliv.pending} antre · {deliv.failed_24h} gagal (24 jam)"},
     ]

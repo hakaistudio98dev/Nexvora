@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy import func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core import audit
+from app.core import audit, events
 from app.core.config import get_settings
 from app.core.context import Ctx
 from app.core.errors import AppError
@@ -40,6 +40,11 @@ async def record_status(session: AsyncSession, ctx: Ctx, order: Order, to_status
                        action="order.status_changed", entity_type="order", entity_id=order.id,
                        before={"status": before}, after={"status": to_status, "reason": reason},
                        correlation_id=ctx.correlation_id, ip=ctx.ip)
+    events.emit(session, tenant_id=order.tenant_id, event_type="order.status_changed", aggregate_type="order",
+                aggregate_id=order.id, correlation_id=ctx.correlation_id,
+                payload={"order_number": order.order_number, "from_status": from_status, "to_status": to_status,
+                         "reason": reason, "channel": order.channel, "external_ref": order.external_ref,
+                         "total": str(order.total), "warehouse_id": str(order.warehouse_id) if order.warehouse_id else None})
 
 
 # ------------------------------------------------------------------ allocation + reservation
@@ -272,3 +277,37 @@ async def create_order(session: AsyncSession, ctx: Ctx, *, channel: str, externa
     if paid:
         await run_action(session, ctx, o, "mark_paid", "Pembayaran terverifikasi saat order masuk")
     return o
+
+
+async def retry_holds(session: AsyncSession, ctx: Ctx, tenant_id: UUID, limit: int = 200) -> int:
+    """Coba alokasikan ulang order yang tertahan karena stok kurang.
+
+    Dipanggil setelah stok masuk (penerimaan barang, penyesuaian, impor) dan oleh worker secara berkala.
+    Order paling lama diproses lebih dulu supaya antreannya adil, dan pelanggan diberi tahu lewat notifikasi
+    bahwa ordernya sudah bisa lanjut.
+    """
+    from app.modules.notifications.service import notify  # noqa: PLC0415
+    # Penting: stok yang baru masuk masih ada di memori sesi. Tanpa flush, query pemilihan gudang
+    # membaca saldo lama dan order tetap dianggap kekurangan stok.
+    await session.flush()
+    orders = (await session.scalars(select(Order).where(
+        Order.tenant_id == tenant_id, Order.stock_status == "OUT_OF_STOCK",
+        Order.status.in_(("CREATED", "PAID")))
+        .order_by(Order.placed_at, Order.order_number)  # antrean adil: order paling lama dilayani dulu
+        .limit(limit)
+        .with_for_update(skip_locked=True))).all()
+    resolved = 0
+    for o in orders:
+        await session.refresh(o, ["items"])
+        ttl = None if o.payment_status == "PAID" else get_settings().reservation_ttl_minutes
+        if await reserve_order(session, ctx, o, ttl_minutes=ttl):
+            resolved += 1
+            if o.status == "PAID":      # sudah dibayar → langsung masuk antrean gudang
+                o.allocated_at = _now()
+                await record_status(session, ctx, o, "ALLOCATED", o.allocation_note)
+            await notify(session, tenant_id, "ORDER_ON_HOLD",
+                         f"{o.order_number} sudah dapat stok dan siap diproses",
+                         "Order yang tadi tertahan kini sudah dialokasikan ke gudang.",
+                         data={"order_number": o.order_number}, link="/orders",
+                         dedup_key=f"unhold:{o.id}:{datetime.now(UTC):%Y%m%d%H}", severity="INFO")
+    return resolved

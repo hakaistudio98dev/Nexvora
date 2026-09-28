@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import DateTime, String, func
+from sqlalchemy import DateTime, Numeric, String, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -15,6 +15,9 @@ class TenantSettings(Base):
     sla_risk_hours: Mapped[int] = mapped_column(default=4)
     low_stock_threshold: Mapped[int] = mapped_column(default=5)
     timezone: Mapped[str] = mapped_column(String(64), default="Asia/Jakarta")
+    lead_time_days: Mapped[int] = mapped_column(default=7)
+    service_level: Mapped[float] = mapped_column(Numeric(4, 3), default=0.95)
+    cover_days: Mapped[int] = mapped_column(default=30)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(),
                                                  onupdate=func.now())
     __mapper_args__ = {"eager_defaults": True}

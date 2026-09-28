@@ -70,9 +70,13 @@ async def complete(s: AsyncSession, ctx: Ctx, rec: InboundReceipt) -> dict:
     rec.status = "COMPLETED"
     rec.completed_at = datetime.now(UTC)
     await s.flush()
+    # Stok bertambah → order yang tertahan karena stok kurang langsung dicoba lagi
+    from app.modules.orders.service import retry_holds  # noqa: PLC0415
+    reallocated = await retry_holds(s, ctx, ctx.tenant_id)
     return {"putaway_tasks": tasks,
             "units_received": sum(ln.received_qty for ln in lines),
-            "units_damaged": sum(ln.damaged_qty for ln in lines)}
+            "units_damaged": sum(ln.damaged_qty for ln in lines),
+            "orders_reallocated": reallocated}
 
 
 async def putaway(s: AsyncSession, ctx: Ctx, *, warehouse_id, sku_id, location: Location, qty: int,  # noqa: ANN001
